@@ -1,0 +1,39 @@
+//Samuel Mcguire
+package compilers4;
+
+public class Quadruple {
+	public String operation;
+	String arg1;
+	String arg2;
+	String result;
+	
+	public static String fixedLengthString(String string, int length) {
+	    return String.format("%1$"+length+ "s", string);
+	}
+	
+	public Quadruple(String operation, String arg1, String arg2, String result) {
+		this.operation = operation;
+		this.arg1 = arg1;
+		this.arg2 = arg2;
+		this.result = result;
+	}
+	public Quadruple(String operation, String arg1, String result) {
+		this.operation = operation;
+		this.arg1 = arg1;
+		this.arg2 = " ";
+		this.result = result;
+	}
+	
+	public void dump() {
+		System.out.println(
+				fixedLengthString(operation,10)
+				+ fixedLengthString(arg1,10)
+				+ fixedLengthString(arg2,10)
+				+ fixedLengthString(result,10)
+				);
+		
+	}
+	
+	
+
+}
