@@ -1,0 +1,26 @@
+
+//Samuel McGuire
+package compilers4;
+
+
+public class Token {
+    public String tokenType;
+    public String tokenLiteral;
+    
+    public Token(String s, String b){
+        tokenType = s;
+        tokenLiteral=b;
+        
+    }
+    
+    public void setType(String tokenType){
+        this.tokenType = tokenType;
+    }
+    public String getType(){
+        return tokenType;
+    }
+    public String getLiteral() {
+    	return tokenLiteral;
+    }
+    
+}
