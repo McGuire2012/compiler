@@ -1,0 +1,1170 @@
+/*
+ * Samuel McGuire
+ * N00840585
+ * 
+ */
+package compilers4;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Scanner;
+
+public class Compilers4 {
+	// debug de
+	public static boolean debug = false;
+	// project 1 dec
+	public static String currentLine;
+	public static char currentChar = ' ';
+	public static int currentPos = -1;
+	public static int commentDepth = 0;
+	public static Scanner input;
+	public static String currentStr = "";
+	// project 2 var dec
+	public static int count = 1;
+	public static ArrayList<Token> tokenList = new ArrayList<Token>();
+	public static boolean newLine = true;
+	// preoject 3 var dec
+	public static ArrayList<ArrayList<String[]>> symbolTable = new ArrayList<ArrayList<String[]>>();
+	public static boolean semanticFlag = true;
+
+	// ---------------------------------------------------------------------------
+	public static void update() throws IOException {
+		currentPos++;
+		if (currentPos < currentLine.length()) {
+			currentChar = currentLine.charAt(currentPos);
+		} else if (input.hasNextLine() && currentPos == currentLine.length()) {
+			currentLine = input.nextLine();
+			newLine = true;
+			currentPos = -1;
+			currentChar = ' ';
+		} else {
+			currentChar = ' ';
+		}
+
+	}
+
+	// **************************************************************************
+	public static void main(String[] args) throws IOException {
+		ArrayList<String[]> x = new ArrayList<String[]>();
+		symbolTable.add(x);
+		// get input, 100, 103, 104, 105, 109
+		input = new Scanner(new File("C:\\Users\\Sam\\Documents\\Fall2017\\Compilers\\test.txt"));
+		currentLine = input.nextLine();
+
+		// handle input
+		update();
+		while (input.hasNextLine() || currentPos < currentLine.length()) {
+			if (newLine) {
+				// System.out.println("Input: "+ currentLine);
+				newLine = false;
+			}
+			// comments division multiplication
+			if (currentChar == '/' || currentChar == '*') {
+				comment(0);
+			}
+			// numbers
+			else if (currentChar >= '0' && currentChar <= '9') {
+				num();
+			}
+
+			// charactrers
+			else if (currentChar >= 'a' && currentChar <= 'z') {
+				id();
+			}
+			// addition operations
+			else if (currentChar == '+') {
+				// System.out.println("Op: +");
+				tokenList.add(new Token("addop", currentStr));
+				count++;
+				if (debug) {
+					System.out.println("Added New Token: addop");
+				}
+				update();
+			} else if (currentChar == '-') {
+				// System.out.println(" Op: -");
+
+				tokenList.add(new Token("addop", currentStr));
+				count++;
+				if (debug) {
+					System.out.println("Added New Token: addop");
+				}
+				update();
+			}
+			// delimiters and relational operators
+			else if (  currentChar == '\t' || currentChar == ' ' || currentChar == '>' || currentChar == '<' || currentChar == '='
+					|| currentChar == '!' || currentChar == '(' || currentChar == ')' || currentChar == '['
+					|| currentChar == ']' || currentChar == ';' || currentChar == '{' || currentChar == '}'
+					|| currentChar == ',') {
+				delim();
+			}
+			// errors
+			else {
+				error();
+			}
+		}
+		if (debug) {
+			System.out.println("Print all Tokens: " + tokenList);
+
+		}
+		tokenList.add(new Token("$", "$"));
+		count++;
+		if (debug || debug2) {
+			System.out.println("Count: " + count);
+		}
+		// *
+		program();
+		if (integrityFlag && semanticFlag) {
+			System.out.println("ACCEPT");
+			Quadruples.display();
+		} else {
+			System.out.println("REJECT");
+		} // */
+
+	}
+
+	// -----------------------------------------------------------------------------------------------------------------
+	public static void comment(int commentDepth) throws IOException {
+		currentStr += currentChar;
+		if (newLine) {
+			// System.out.println("Input: "+ currentLine);
+			newLine = false;
+		}
+		if (currentChar == '/') {
+			update();
+			if (currentChar == '*') {
+				commentDepth++;
+				update();
+				currentStr = "";
+				comment(commentDepth);
+			} else if (currentChar == '/' && input.hasNextLine()) {
+				currentLine = input.nextLine();
+			} else {
+				// System.out.println("Op: /");
+				tokenList.add(new Token("mulop", currentStr));
+				count++;
+				if (debug) {
+					System.out.println("Added New Token: mulop 1");
+				}
+			}
+		} else if (currentChar == '*' && commentDepth != 0) {
+			update();
+			// comment(commentDepth);
+			if (currentChar == '/') {
+				update();
+				commentDepth--;
+				// comment(commentDepth);
+
+			}
+		} else if (currentChar == '*' && commentDepth == 0) {
+			// System.out.println("Op: *");
+			tokenList.add(new Token("mulop", currentStr));
+			count++;
+			if (debug) {
+				System.out.println("Added New Token: mulop");
+			}
+			update();
+		} else {
+			if (commentDepth == 0) {
+				return;
+			} else {
+				update();
+				comment(commentDepth);
+			}
+		}
+		currentStr = "";
+	}
+
+	// -----------------------------------------------------------------------------------------------------------------
+	public static void num() throws IOException {
+		currentStr += currentChar;
+		update();
+		boolean cont = true;
+		while (cont) {
+			if (((currentChar >= '0' && currentChar <= '9') || currentChar == '.' || currentChar == 'E')
+					&& currentPos < currentLine.length()) {
+				currentStr += currentChar;
+				update();
+			} else if ((currentChar == '+' || currentChar == '-') && (currentStr.contains("E"))) {
+				currentStr += currentChar;
+				update();
+			} else {
+				cont = false;
+			}
+
+		}
+		if (currentStr.contains(".") || currentStr.contains("E")) {
+			// System.out.println("Float: " + currentStr);
+			tokenList.add(new Token("NUM", currentStr));
+			count++;
+			if (debug) {
+				System.out.println("Added New Token: NUM");
+			}
+		} else {
+			// System.out.println("Int: " + currentStr);
+			tokenList.add(new Token("NUM", currentStr));
+			count++;
+			if (debug) {
+				System.out.println("Added New Token: NUM");
+			}
+		}
+		currentStr = "";
+
+	}
+
+	// -----------------------------------------------------------------------------------------------------------------
+	public static void id() throws IOException {
+		boolean end = false;
+		while (!end) {
+			if (currentPos == currentLine.length() - 1) {
+				end = true;
+			}
+			if ((currentChar >= 'a' && currentChar <= 'z')) {
+				currentStr += currentChar;
+				update();
+
+			} else if (currentChar == '\t' || currentChar == ',' || currentChar == ' ' || currentChar == '<' || currentChar == '=' || currentChar == '!'
+					|| currentChar == '(' || currentChar == ')' || currentChar == '[' || currentChar == ']'
+					|| currentChar == ';' || currentChar == '{' || currentChar == '}' || currentChar == '*'
+					|| currentChar == '/' || currentChar == '+' || currentChar == '-') {
+				end = true;
+			} else {
+				currentStr += (currentChar);
+				error();
+				end = true;
+			}
+		}
+		if (currentStr.equals("if") || currentStr.equals("else") || currentStr.equals("float")
+				|| currentStr.equals("int") || currentStr.equals("void") || currentStr.equals("while")
+				|| currentStr.equals("return")) {
+			System.out.println("Keyword: " + currentStr);
+			tokenList.add(new Token(currentStr, currentStr));
+			count++;
+			System.out.println("Added New Token: " + currentStr);
+			if (debug) {
+				System.out.println("Added New Token: " + currentStr);
+			}
+		} else {
+			System.out.println("ID: " + currentStr);
+			tokenList.add(new Token("ID", currentStr));
+			count++;
+			if (debug) {
+				System.out.println("Added New Token: ID");
+			}
+		}
+		currentStr = "";
+	}
+
+	/*
+	 * KEYWORDS if else float int void while return
+	 */
+	// -----------------------------------------------------------------------------------------------------------------
+	public static void delim() throws IOException {
+		currentStr += currentChar;
+		if (currentChar == '!') {
+			update();
+			if (currentChar == '=') {
+				currentStr += (currentChar);
+			} else {
+				// System.out.println("Error: " + currentStr);
+				update();
+				currentStr = "";
+				return;
+			}
+		} else if (currentChar == '<' || currentChar == '>') {
+			update();
+			if (currentChar == '=') {
+				currentStr += (currentChar);
+			}
+
+		} else if (currentChar == '=') {
+			update();
+			if (currentChar == '=') {
+				currentStr += (currentChar);
+			} else {
+				currentPos--;
+			}
+		}
+		if (!currentStr.equals(" ")) {
+			// System.out.println("Delim: '" + currentStr +"'");
+		}
+		if (!" ".equals(currentStr) && !"\t".equals(currentStr)) {
+			if ("<=".equals(currentStr) || "<".equals(currentStr) || ">".equals(currentStr) || ">=".equals(currentStr)
+					|| "==".equals(currentStr) || "!=".equals(currentStr)) {
+				tokenList.add(new Token("relop", currentStr));
+				count++;
+				if (debug) {
+					System.out.println("Added New Token: relop");
+				}
+			} else {
+				tokenList.add(new Token(currentStr, currentStr));
+				count++;
+				if (debug) {
+					System.out.println("Added New Token: " + currentStr);
+				}
+			}
+		}
+		currentStr = "";
+		update();
+	}
+
+	// -----------------------------------------------------------------------------------------------------------------
+	public static void error() throws IOException {
+		currentStr += (currentChar);
+		update();
+		if (currentPos == currentLine.length() || currentChar == '*' || currentChar == '/' || currentChar == '+'
+				|| currentChar == '\t'|| currentChar == '-' || currentChar == ' ' || currentChar == '<' || currentChar == '='
+				|| currentChar == '!' || currentChar == '(' || currentChar == ')' || currentChar == '['
+				|| currentChar == ']' || currentChar == ';' || currentChar == '{' || currentChar == '}') {
+			// System.out.println("Error : " + currentStr );
+			currentStr = "";
+		} else {
+			currentStr += (currentChar);
+			error();
+		}
+	}
+
+	// -----------------------------------------------------------------------------------------------------------------
+	/*
+	 * Project 2*****************************************************************
+	 ****************************************************************************
+	 */
+	// debug
+	public static boolean debug2 = true;
+	// * Project2 toggle
+	public static int tokenCount = 0;
+	public static Token currentToken;
+	public static boolean integrityFlag = true;
+	// project 3
+	public static String temp[] = new String[4];
+	public static int scope = 0;
+
+	public static void reject() {
+		integrityFlag = false;
+
+		if (debug2) {
+			System.out.println("REJECT");
+		}
+		if (tokenCount < tokenList.size()) {
+			advance();
+		}
+	}
+
+	public static void increaseScope() {
+		if (debug2) {
+			System.out.println(" Symbol: " + " " + temp[0] + " " + temp[1] + " " + temp[2] + " " + temp[3]);
+		}
+
+		symbolTable.get(scope).add(temp.clone());
+		scope++;
+		ArrayList<String[]> y = new ArrayList<String[]>();
+		symbolTable.add(scope, y);
+
+		if (temp[2] != null) {
+			temp[0] = temp[2];
+			temp[1] = temp[3];
+			symbolTable.get(scope).add(0, temp.clone());
+			for (int i = 0; i < 4; i++) {
+				temp[i] = null;
+			}
+		}
+		if (debug2) {
+			// System.out.println(symbolTable.get(scope).get(0)[0]+"
+			// "+symbolTable.get(scope).get(0)[1]);
+			// System.out.println(symbolTable.get(scope-1).get(0)[0]+"
+			// "+symbolTable.get(scope-1).get(0)[1]);
+		}
+	}
+
+	public static void addToScope() {
+		symbolTable.get(scope).add(temp.clone());
+		for (int i = 0; i < 4; i++) {
+			temp[i] = null;
+		}
+		if (debug2) {
+			System.out.print("		" + symbolTable.get(scope).get(symbolTable.get(scope).size() - 1)[0] + " ");
+			System.out.println(symbolTable.get(scope).get(symbolTable.get(scope).size() - 1)[1]);
+			System.out.println("     " + symbolTable.get(scope).size());
+		}
+	}
+
+	public static void exitScope() {
+		if (scope > 0) {
+			symbolTable.remove(scope);
+			scope--;
+		}
+	}
+
+	public static void findInScope(String find) {
+		for (int i = 0; i < symbolTable.get(scope).size(); i++) {
+			if (symbolTable.get(scope).get(i)[1].equals(find)) {
+				if (debug2) {
+					System.out.println(" Found " + find);
+				}
+				return;
+			}
+		}
+		if (scope != 0) {
+			for (ArrayList<String[]> currentTableEntry : symbolTable) {
+				for (int i = 0; i < currentTableEntry.size(); i++) {
+					String varName = currentTableEntry.get(i)[1];
+					if (varName != null && varName.equals(find)) {
+						if (debug2) {
+							System.out.println(" Found " + find);
+						}
+						return;
+					}
+				}
+			}
+		}
+		semanticFlag = false;
+		System.out.println("reject " + find);
+	}
+
+	public static void advance() {
+		currentToken = tokenList.get(tokenCount);
+		if (debug2) {
+			System.out.println("Current Token: " + currentToken.getType());
+		}
+		tokenCount++;
+	}
+
+	// --------------------------------------------------------------------------------------
+	public static void program() {
+		if (tokenCount == 0) {
+			advance();
+		}
+		if (debug2) {
+			System.out.println("P");
+		}
+		if (tokenList.size() == 1) {
+
+			integrityFlag = false;
+			return;
+		} else if (tokenCount == tokenList.size()) {
+
+			return;
+		}
+		if (!integrityFlag) {
+
+			return;
+		}
+		declarationList();
+		if ("$".equals(currentToken.getType())) {
+			return;
+		}
+	}
+
+	public static void declarationList() {
+		if (debug2) {
+			System.out.println("DL");
+		}
+		declaration();
+		// System.out.println(currentToken.getType());
+		if ("int".equals(currentToken.getType()) || "float".equals(currentToken.getType())
+				|| "void".equals(currentToken.getType()) || "ID".equals(currentToken.getType())) {
+			declarationList();
+		} else if ("$".equals(currentToken.getType())) {
+			return;
+		}
+	}
+
+	public static void declaration() {
+		if (debug2) {
+			System.out.println("D");
+		}
+		typeSpesifyer();
+		if ("ID".equals(currentToken.getType())) {
+			temp[1] = currentToken.getLiteral();
+			advance();
+			if (";".equals(currentToken.getType()) || "[".equals(currentToken.getType())) {
+				variableDeclaration1();
+			} else if ("(".equals(currentToken.getType())) {
+				funDeclaration();
+			} else {
+				reject();
+			}
+		} else {
+			reject();
+		}
+
+	}
+
+	public static void variableDeclaration() {
+		if (debug2) {
+			System.out.println("VD");
+		}
+		typeSpesifyer();
+		if ("ID".equals(currentToken.getType())) {
+			temp[1] = currentToken.getLiteral();
+			advance();
+		}
+		if (!";".equals(currentToken.getType()) || !"[".equals(currentToken.getType())) {
+			variableDeclaration1();
+		}
+	}
+
+	public static void variableDeclaration1() {
+		if (debug2) {
+			System.out.println("VD'");
+		}
+		if (";".equals(currentToken.getType())) {
+			if ( temp[2] != null ) {
+				Quadruples.addVariable(temp[2], temp[1]);
+			} else {
+				Quadruples.addVariable(temp[0], temp[1]);
+			}
+			addToScope();
+			advance();
+		} else if ("[".equals(currentToken.getType())) {
+			advance();
+			if ("NUM".equals(currentToken.getType())) {
+				if ( temp[2] != null ) {
+					Quadruples.addVariableArray(temp[2], temp[1], currentToken.getLiteral() );
+				} else {
+					Quadruples.addVariableArray(temp[0], temp[1], currentToken.getLiteral());
+				}
+				advance();
+				if ("]".equals(currentToken.getType())) {
+					advance();
+					if (";".equals(currentToken.getType())) {
+						addToScope();
+						advance();
+					} else {
+						reject();
+					}
+				} else {
+					reject();
+				}
+			} else {
+				reject();
+			}
+		} else {
+			reject();
+		}
+	}
+
+	public static void typeSpesifyer() {
+		if (debug2) {
+			System.out.println("TS");
+		}
+		if ("int".equals(currentToken.getType()) || "float".equals(currentToken.getType())
+				|| "void".equals(currentToken.getType())) {
+			if (temp[0] == null) {
+				temp[0] = currentToken.getLiteral();
+			} else {
+				temp[2] = currentToken.getLiteral();
+			}
+			advance();
+		} else {
+			reject();
+		}
+	}
+
+	public static void funDeclaration() {
+		if (debug2) {
+			System.out.println("FD");
+		}
+		if ("(".equals(currentToken.getType())) {
+			String func = temp[1];
+			Quadruples.addFunction(temp[1], temp[0]);
+			advance();
+			params();
+			if (")".equals(currentToken.getType())) {
+				advance();
+				compoundStatement();
+				Quadruples.endFunction(func);
+			} else {
+				reject();
+			}
+		} else {
+			reject();
+		}
+
+	}
+
+	public static void params() {
+		if (debug2) {
+			System.out.println("PARS");
+		}
+		if ("int".equals(currentToken.getType()) || "float".equals(currentToken.getType())) {
+			Quadruples.addParam();
+			paramList();
+		} else if (currentToken.getType().equals("void")) {
+			advance();
+		} else {
+			reject();
+		}
+	}
+
+	public static void paramList() {
+		if (debug2) {
+			System.out.println("PARL");
+		}
+		param();
+		paramList1();
+	}
+
+	public static void paramList1() {
+		if (debug2) {
+			System.out.println("PARL'");
+		}
+		if(",".equals(currentToken.getType())){
+			advance();
+			param();
+			paramList1();
+		} else if (")".equals(currentToken.getType())) {
+			return; // empty
+		} else {
+			// reject();
+		}
+	}
+
+	public static void param() {
+		if (debug2) {
+			System.out.println("PAR");
+		}
+		typeSpesifyer();
+		if ("ID".equals(currentToken.getType())) {
+			temp[3] = currentToken.getLiteral();
+			Quadruples.addVariable(temp[3], temp[3]);
+			advance();
+			param1();
+		} else {
+			// reject();
+		}
+	}
+
+	public static void param1() {
+		if (debug2) {
+			System.out.println("PAR'");
+		}
+		if ("[".equals(currentToken.getType())) {
+			advance();
+			if ("]".equals(currentToken.getType())) {
+				advance();
+			} else {
+				reject();
+			}
+		} else if ("ID".equals(currentToken.getType())) {
+
+			return;// empty
+		} else {
+			// reject();
+		}
+	}
+
+	public static void compoundStatement() {
+		if (debug2) {
+			System.out.println("CS");
+		}
+		if ("{".equals(currentToken.getType())) {
+			increaseScope();
+			advance();
+			localDeclaration();
+			statementList();
+			if ("}".equals(currentToken.getType())) {
+				advance();
+			} else {
+				reject();
+			}
+		} else {
+			reject();
+		}
+	}
+
+	public static void localDeclaration() {
+		if (debug2) {
+			System.out.println("LD");
+		}
+		if ("int".equals(currentToken.getType()) || "float".equals(currentToken.getType())
+				|| "void".equals(currentToken.getType())) {
+			variableDeclaration();
+			localDeclaration();
+		} else if ("if".equals(currentToken.getType()) || "(".equals(currentToken.getType())
+				|| "ID".equals(currentToken.getType()) || "NUM".equals(currentToken.getType())
+				|| "{".equals(currentToken.getType()) || "else".equals(currentToken.getType()) || "while".equals(currentToken.getType())
+				|| "return".equals(currentToken.getType()) || "}".equals(currentToken.tokenType)) {
+			return;// empty
+		} else {
+			reject();
+		}
+	}
+
+	public static void statementList() {
+		if (debug2) {
+			System.out.println("SL");
+		}
+		statement();
+		if ("(".equals(currentToken.getType()) || "ID".equals(currentToken.getType())
+				|| "while".equals(currentToken.getType()) || "NUM".equals(currentToken.getType())
+				|| "{".equals(currentToken.getType()) || "if".equals(currentToken.getType())
+				|| "return".equals(currentToken.getType())) {
+			statementList();
+		} else if ("}".equals(currentToken.getType())) {
+			return;// empty
+		} else {
+			reject();
+		}
+	}
+
+	public static void statement() {
+		if (debug2) {
+			System.out.println("S");
+		}
+		if (";".equals(currentToken.getType()) || "ID".equals(currentToken.getType())
+				|| "(".equals(currentToken.getType()) || "NUM".equals(currentToken.getType())) {
+			expressionStatement();
+		} else if ("{".equals(currentToken.getType())) {
+			compoundStatement();
+			Quadruples.endFunction(null);
+		} else if ("if".equals(currentToken.getType())) {
+			selectionStatement();
+		} else if ("while".equals(currentToken.getType())) {
+			iterationStatement();
+		} else if ("return".equals(currentToken.getType())) {
+			returnStatement();
+		} else {
+			// reject();
+		}
+	}
+
+	public static void expressionStatement() {
+		if (debug2) {
+			System.out.println("ES");
+		}
+		if ("ID".equals(currentToken.getType()) || "(".equals(currentToken.getType())
+				|| "NUM".equals(currentToken.getType())) {
+			expression();
+			if (";".equals(currentToken.getType())) {
+				advance();
+			} else {
+				reject();
+			}
+		} else if (";".equals(currentToken.getType())) {
+			if (";".equals(currentToken.getType())) { // whatever
+				advance();
+			}
+		} else {
+			reject();
+		}
+	}
+
+	public static void selectionStatement() {
+		if (debug2) {
+			System.out.println("SS");
+		}
+		if ("if".equals(currentToken.getType())) {
+			advance();
+			if ("(".equals(currentToken.getType())) {
+				advance();
+				expression();
+				if (")".equals(currentToken.getType())) {
+					advance();
+					statement();
+					selectionStatement1();
+				} else if ("relop".equals(currentToken.getType())) {
+						advance();
+						expression();
+						if (")".equals(currentToken.getType())) {
+							advance();
+							statement(); 
+							selectionStatement1();
+						} else {
+							reject();
+						}
+				} else {
+					reject();
+				}
+			} else {
+				reject();
+			}
+		} else {
+			reject();
+		}
+	}
+
+	public static void selectionStatement1() {
+		if (debug2) {
+			System.out.println("SS'");
+		}
+		if ("else".equals(currentToken.getType())) {
+			advance();
+			statement();
+		} else if ("(".equals(currentToken.getType()) || "ID".equals(currentToken.getType())
+				|| "NUM".equals(currentToken.getType()) || "{".equals(currentToken.getType())
+				|| "if".equals(currentToken.getType()) || "return".equals(currentToken.getType())) {
+			return;// empty
+		}
+	}
+
+	public static void iterationStatement() {
+		if (debug2) {
+			System.out.println("IS");
+		}
+		if ("while".equals(currentToken.getType())) {
+			advance();
+			if ("(".equals(currentToken.getType())) {
+				advance();
+				expression();
+				if (")".equals(currentToken.getType())) {
+					//Quadruples.pushExpressionDone();
+					advance();
+					statement(); 
+					
+				}else if ("relop".equals(currentToken.getType())) {
+					advance();
+					expression();
+					if (")".equals(currentToken.getType())) {
+						//Quadruples.pushExpressionDone();
+						advance();
+						statement(); 
+					} else {
+						reject();
+					}
+				} else {
+					reject();
+				}
+			} else {
+				reject();
+			}
+		} else {
+			reject();
+		}
+		
+	}
+
+	public static void returnStatement() {
+		if (debug2) {
+			System.out.println("RS");
+		}
+		if ("return".equals(currentToken.getType())) {
+			advance();
+			returnStatement1();
+		}
+	}
+
+	public static void returnStatement1() {
+		boolean retParameter=false;
+		String id;
+		if (debug2) {
+			System.out.println("RS'");
+		}
+		if ( "(".equals(currentToken.getType() ) ) {
+			retParameter=true;
+			advance();
+		}
+		if ("ID".equals(currentToken.getType()) || "(".equals(currentToken.getType())
+				|| "NUM".equals(currentToken.getType())) {
+			expression();
+			if ( ")".equals(currentToken.getType() ) ) {
+				advance();
+			}
+			if (";".equals(currentToken.getType())) {
+				advance();
+			} else {
+				reject();
+			}
+		} else if (";".equals(currentToken.getType())) {
+			advance();
+		} else {
+			reject();
+		}
+		if ( retParameter) {
+			Quadruples.addReturnLast();
+		} else {
+			Quadruples.addReturnNone();
+		}
+			
+	}
+
+	public static void expression() { // this probably works
+		if (debug2) { // it definately doesnt you ass
+			System.out.println("E");
+		}
+		if ("ID".equals(currentToken.getType())) {
+			String x = currentToken.getLiteral();
+			findInScope(currentToken.getLiteral());
+			Quadruples.pushVariable(currentToken.getLiteral());
+			advance();
+			if ("relop".equals(currentToken.getType())) {
+				Quadruples.pushOperation(currentToken.getLiteral());
+				advance();
+				simpleExpression();
+			} else if ("=".equals(currentToken.getType())) {
+				Quadruples.pushOperation("assign");
+				advance();
+				expression();
+			} else if ("[".equals(currentToken.getType())) {
+				variable1();
+				if ("=".equals(currentToken.getType())) {
+					
+					advance();
+					expression();
+				} else if (!";".equals(currentToken.getType())) {
+					// there is more to this, handle it
+					advance();
+					expression();
+				}
+			} else if ("mulop".equals(currentToken.getType())) {
+				if ( "/".equals(currentToken.tokenLiteral) ) {
+					Quadruples.pushOperation("div");
+				} 
+				if ( "*".equals(currentToken.tokenLiteral) ) {
+					Quadruples.pushOperation("mult");
+				}
+				advance();
+				term();
+				
+			} else if ("addop".equals(currentToken.getType())) {
+				//Quadruples.pushOperation("add");
+				additiveExpression1();	
+			} else if ("(".equals(currentToken.getType())) {
+				call();
+				Quadruples.addCallName(x);
+			}
+		} else if ("NUM".equals(currentToken.getType())) {
+			Quadruples.pushVariable(currentToken.getLiteral());
+			simpleExpression();
+		}else if ("(".equals(currentToken.getType())) {
+                    factor();
+                    if ("mulop".equals(currentToken.getType())) {
+				if ( "/".equals(currentToken.tokenLiteral) ) {
+					Quadruples.pushOperation("div");
+				} 
+				if ( "*".equals(currentToken.tokenLiteral) ) {
+					Quadruples.pushOperation("mult");
+				}
+				advance();
+				term();
+				
+			}
+                }
+		
+		if ("relop".equals(currentToken.getType())) {
+			Quadruples.pushOperation(currentToken.getLiteral());
+		} else {
+			Quadruples.pushExpressionDone();
+		}
+		// expression1();
+	}
+
+	public static void expression1() {
+		if (debug2) {
+			System.out.println("E'");
+		}
+		if ("=".equals(currentToken.getType())) {
+			advance();
+			expression();
+		} else if (("addop".equals(currentToken.getType())) || "relop".equals(currentToken.getType())
+				|| "mulop".equals(currentToken.getType())) {
+			simpleExpression();
+		} else {
+			reject();
+		}
+
+	}
+
+	public static void variable() {
+		if (debug2) {
+			System.out.println("V");
+		}
+		if ("ID".equals(currentToken.getType())) {
+			advance();
+			variable1();
+		} else {
+			reject();
+		}
+	}
+
+	public static void variable1() {
+		if (debug2) {
+			System.out.println("V'");
+		}
+		if ("[".equals(currentToken.getType())) {
+			advance();
+			expression();
+			if ("]".equals(currentToken.getType())) {
+				advance();
+			} else {
+				reject();
+			}
+		} else if ("relop".equals(currentToken.getType())) {
+			return; // empty
+		} else if ("mulop".equals(currentToken.getType())) {
+			return; // empty
+		} else {
+			reject();
+		}
+
+	}
+
+	// ---------------------------------------------------------------------------------------------------
+	public static void simpleExpression() {
+		if (debug2) {
+			System.out.println("SE");
+		}
+		additiveExpression();
+		simpleExpression1();
+	}
+
+	public static void simpleExpression1() {
+		if (debug2) {
+			System.out.println("SE'");
+		}
+		if ("relop".equals(currentToken.getType())) {
+			advance();
+			additiveExpression();
+		} else if (";".equals(currentToken.getType()) || " )".equals(currentToken.getType())
+				|| ",".equals(currentToken.getType()) || ")".equals(currentToken.getType())
+				|| "}".equals(currentToken.getType())) {
+			return;// empty
+		} else {
+			// reject();
+		}
+	}
+
+	public static void additiveExpression() {
+		if (debug2) {
+			System.out.println("AE");
+		}
+		term();
+		additiveExpression1();
+	}
+
+	public static void additiveExpression1() {
+		if (debug2) {
+			System.out.println("AE'");
+		}
+		if ("addop".equals(currentToken.getType())) {
+			Quadruples.pushOperation("add");
+			advance();
+			term();
+			additiveExpression1();
+		} else {
+
+			return;
+		}
+	}
+
+	public static void term() {
+		if (debug2) {
+			System.out.println("T");
+		}
+
+		factor();
+		term1();
+	}
+
+	public static void term1() {
+		if (debug2) {
+			System.out.println("T'");
+		}
+		if ("mulop".equals(currentToken.getType())) {
+			if ( "/".equals(currentToken.tokenLiteral) ) {
+				Quadruples.pushOperation("div");
+			} 
+			if ( "*".equals(currentToken.tokenLiteral) ) {
+				Quadruples.pushOperation("mult");
+			}
+			advance();
+			factor();
+			term1();
+			
+		} else if ("addop".equals(currentToken.getType()) || ")".equals(currentToken.getType())
+				|| ";".equals(currentToken.getType())) {
+			return;// empty
+		} else {
+
+			// reject();
+		}
+	}
+
+	public static void factor() { // this probably works
+		if (debug2) {
+			System.out.println("F");
+		}
+		if ("(".equals(currentToken.getType())) {
+			advance();
+			expression();
+			if (")".equals(currentToken.getType())) {
+				advance();
+			} else {
+				reject();
+			}
+		} else if ("ID".equals(currentToken.getType())) {
+			String x = currentToken.getLiteral();
+			Quadruples.pushVariable(x);
+			advance();
+			if ("[".equals(currentToken.getType()) || "relop".equals(currentToken.getType())
+					|| "mulop".equals(currentToken.getType())) {
+				variable1();
+			} else if ("(".equals(currentToken.getType())) {
+				call();
+				Quadruples.addCallName(x);
+			}
+			findInScope(x);
+		} else if ("NUM".equals(currentToken.getType())) {
+			Quadruples.pushVariable(currentToken.tokenLiteral);
+			advance();
+		} else {
+			reject();
+		}
+
+	}
+
+	public static void call() {
+		if (debug2) {
+			System.out.println("C");
+		}
+		if ("(".equals(currentToken.getType())) {
+			advance();
+			arguments();
+			if (")".equals(currentToken.getType())) {
+				advance();
+			} else {
+				reject();
+			}
+		} else {
+			reject();
+		}
+	}
+
+	public static void arguments() {
+		if (debug2) {
+			System.out.println("A");
+		}
+		if ("(".equals(currentToken.getType()) || "ID".equals(currentToken.getType())
+				|| "NUM".equals(currentToken.getType())) {
+			argsList();
+		} else if (")".equals(currentToken.getType())) {
+			return;// empty
+		} else {
+			reject();
+		}
+	}
+
+	public static void argsList() {
+		if (debug2) {
+			System.out.println("AL");
+		}
+		expression();
+		argsList1();
+	}
+
+	public static void argsList1() {
+		if (debug2) {
+			System.out.println("AL'");
+		}
+		if (",".equals(currentToken.getType())) {
+			advance();
+			expression();
+			argsList1();
+		} else if (")".equals(currentToken.getType())) {
+			return;// empty
+		} else {
+			reject();
+		}
+	}// */
+
+}
