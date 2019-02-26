@@ -1,0 +1,18 @@
+//Samuel McGuire
+package compilers4;
+
+public class Node {
+	boolean isOperand;
+	String value;
+	Node left, right;
+	int  register=0;
+	int prec=0;
+
+	Node(boolean isOperand, String item) {
+		this.isOperand=isOperand;
+		
+		value = item;
+		left = right = null;
+	}
+
+}
