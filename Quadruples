@@ -1,0 +1,332 @@
+//Samuel McGuire
+package compilers4;
+
+import java.util.ArrayList;
+import java.util.Stack;
+
+public class Quadruples {
+	static ArrayList<Quadruple> quadruples = new ArrayList<Quadruple>();
+
+	static Quadruple inProgress = null;
+	static int count = 0;
+	static Node expression = new Node(true, null);
+	static Node lastExpression;
+	static Node lostNode = null;
+	static boolean fixit=false;
+	static String functionName = null;
+
+	public static String fixedLengthString(String string, int length) {
+		return String.format("%1$" + length + "s", string);
+	}
+
+	public static void addVariable(String type, String name) {
+
+		// both float and int are 4
+		Quadruple quad = new Quadruple("alloc", "4", name);
+		quadruples.add(quad);
+
+	}
+	
+	public static void addVariableArray(String type, String name, String size) {
+		System.out.println("******************************add var size : "+size);
+
+		// both float and int are 4
+		int realSize = Integer.parseInt(size) * 4;
+		Quadruple quad = new Quadruple("alloc", Integer.toString(realSize), name);
+		quadruples.add(quad);
+
+	}
+	
+	public static void addCallName(String name) {
+		System.out.println("******************************add call : ");
+
+		// both float and int are 4
+		if ( lastExpression.isOperand) {
+			Quadruple quad = new Quadruple("call", name, " ","_t"+Integer.toString(count));
+			quadruples.add(quad);
+		} else {
+			
+			Quadruple quad = new Quadruple("call", name, " ","_t"+Integer.toString(count));
+			quadruples.add(quad);
+		}
+		
+	}
+	
+	public static void addReturnNone() {
+		System.out.println("******************************return none : ");
+
+		// both float and int are 4
+		Quadruple quad = new Quadruple("return", " ", " ");
+		quadruples.add(quad);
+	}
+	
+	public static void addReturnLast() {
+		System.out.println("******************************return last ");
+
+		// both float and int are 4
+		Quadruple quad = new Quadruple("return", " ", " ","_t"+Integer.toString(count) );
+		quadruples.add(quad);
+	}
+	
+	public static void addParam() {
+		System.out.println("******************************add param: ");
+
+		// both float and int are 4
+		Quadruple quad = new Quadruple("param", " ", " ");
+		quadruples.add(quad);
+
+	}
+
+	public static void addFunction(String name, String retType) {
+		System.out.println("******************************add func: " + name);
+
+		functionName=name;
+		if (retType.equals("void")) {
+			Quadruple quad = new Quadruple("func", name, retType, "0");
+			quadruples.add(quad);
+			return;
+		}
+		Quadruple quad = new Quadruple("func", name, retType, "2");
+		quadruples.add(quad);
+	}
+
+	public static void endFunction(String name ) {
+		// end            func           main
+		System.out.println("******************************end func: ");
+		if (name != null ) {
+			Quadruple quad = new Quadruple("end", "func",name , " ");
+			quadruples.add(quad);
+		} else {
+			Quadruple quad = new Quadruple("end", "block"," " , " ");
+			quadruples.add(quad);
+		}
+		functionName = null;
+	}
+
+	public static void addRelop(String a) {
+		System.out.println("******************************Relop: ");
+		Quadruple quad = new Quadruple("comp", "dontknow", "dontknow", "2");
+		quadruples.add(quad);
+	}
+
+	//public static void addAssign() {
+	//	System.out.println("******************************Relop: ");
+	//	Quadruple quad = new Quadruple("assign", "dontknow", "dontknow", "2");
+	//	quadruples.add(quad);
+	//}
+
+	public static void pushVariable(String in) {
+
+		System.out.println("******************************Variable: " + in);
+		Node node = new Node(false, in);
+		if (expression.left == null) {
+			expression.left = node;
+		} else if (expression.right == null) {
+			expression.right = node;
+		} else {
+			lostNode = node;
+		}
+
+	}
+	
+	public static int getPrec(String in) {
+		int value = 0;
+		if ("assign".equals(in)) {
+			return(0);
+		}
+		
+		value++;
+		if ("comp".equals(in))return(0);
+		if ("BRGEQ".equals(in))return(value);
+		if ("BRGNG".equals(in))return(value);
+		if ("BRLEQ".equals(in))return(value);
+		if ("BRL".equals(in))return(value);
+		if ("BRG".equals(in))return(value);
+		if ("comp".equals(in))return(value);
+		value++;
+		if ("add".equals(in))return(value);
+		if ("sub".equals(in))return(value);
+		
+		if ("block".equals(in))return(value);
+		
+		value++;
+		if ("mult".equals(in))return(value);
+		if ("div".equals(in))return(value);
+		
+		return(0);
+		
+	}
+
+	public static void pushOperation(String in) {
+		System.out.println("******************************Operation: " + in);
+
+		if (expression.value == null) {
+			expression.value = in;
+			expression.prec = getPrec(in);
+			return;
+		}
+		Node node = new Node(true, in);
+		node.prec = getPrec(in);
+
+		if (node.left == null) {
+			node.left = expression;
+			node.right = lostNode;
+			lostNode = null;
+		} else {
+			node.right = expression;
+		}
+		expression = node;
+
+	}
+	
+
+	
+	static String getCompareCommand(String currentStr) {
+		if ("<=".equals(currentStr) ) return "BRLEQ";
+		if ("<".equals(currentStr)  ) return "BRL"; 
+		if (">".equals(currentStr)  ) return "BRG";
+		if (">=".equals(currentStr) ) return "BRGEQ";
+		if ("==".equals(currentStr) ) return "BREQ";
+		if ("!=".equals(currentStr) ) return "BRNEQ";
+		
+		return null;
+	}
+	
+	static public Quadruple createQuadruple(Node t, String value) {
+		String rightValue;
+		String leftValue;
+		String qvalue;
+		if ( "assign".equals(t.value)) {
+			return new Quadruple(t.value, "_t"+Integer.toString(count), " ",value);	
+		}
+		if ( t.right.isOperand) {
+			rightValue = "_t"+Integer.toString(count);
+		}
+		else {
+			rightValue = t.right.value;
+		}
+		if ( t.left.isOperand) {
+			leftValue = "_t"+Integer.toString(count);
+		}
+		else {
+			leftValue = t.left.value;
+		}
+		
+		qvalue = t.value;
+		count++;
+		t.register = count;
+		String compare= getCompareCommand(qvalue);
+		if (compare != null) {
+			quadruples.add (new Quadruple("comp", leftValue, rightValue, "_t"+Integer.toString(count)));
+			quadruples.add( new Quadruple(compare, "_t"+Integer.toString(count), "  ","jump"));
+			return new Quadruple("block", " "+" ", "  "," ");
+		}
+	
+		return new Quadruple(qvalue, leftValue, rightValue, "_t"+Integer.toString(count));
+	}
+	
+
+	static void handleNode(Node t) {
+		if (t == null)
+			return;
+		if (!t.isOperand)
+			return;
+		if (t.left == null)
+			return;
+		if (t.right == null)
+			return;
+
+		if (!t.left.isOperand && !t.right.isOperand) {
+			quadruples.add(createQuadruple(t," "));
+
+		}
+		if (t.left.isOperand) {
+			handleNode(t.left);
+		}
+		if (t.left.isOperand && !t.right.isOperand && t.left.register != 0) {
+			quadruples.add(createQuadruple(t,t.right.value));
+		}
+
+		if (t.right.isOperand) {
+			handleNode(t.right);
+		}
+
+		if (t.right.isOperand && !t.left.isOperand && t.right.register != 0) {
+			quadruples.add(createQuadruple(t,t.left.value));
+		}
+
+	}
+
+	static  Node fixTheNode(Node t) {
+		Node topNode;
+		topNode=t;
+		fixit = false;
+		if ( t==null) return t;
+		if ( t.isOperand) {
+			if (t.left != null && t.left.isOperand && t.left.prec < t.prec) {
+				topNode = t.left;
+				t.left = topNode.right;
+				topNode.right = t;
+				fixit=true;
+				return topNode;
+			}
+			if (t.right != null && t.right.isOperand && t.right.prec < t.prec) {
+				topNode = t.right;
+				t.right = topNode.right;
+				topNode.right = t;
+				fixit=true;
+				return topNode;
+			}
+		}
+		if ( !fixit ) fixTheNode(t.left);
+		if ( !fixit ) fixTheNode(t.right);
+		
+		return topNode;
+
+	}
+
+	public static void pushExpressionDone() {
+		System.out.println("******************************Expression Done : ");
+	
+		fixit=true;
+		while( fixit) {
+			expression = fixTheNode(expression);
+		}
+		handleNode(expression);
+
+		lastExpression = expression;
+		expression = new Node(true, null);
+
+		System.out.println();
+	}
+	
+	public static void postProcess() {
+		
+		for (Quadruple quad : quadruples) {
+		    if ("assign".equals(quad.operation)) {
+		    	String temp = quad.arg1;
+		    	quad.arg1 = quad.arg2;
+		    	quad.result = temp;
+		    	quad.arg2 = " ";
+			}
+		}
+	}
+	
+
+	public static void display() {
+		int num = 0;
+		
+		fixit=true;
+		while( fixit) {
+			expression = fixTheNode(expression);
+		}
+		
+		handleNode(expression);
+		for (Quadruple quad : quadruples) {
+			num++;
+			System.out.print(fixedLengthString(Integer.toString(num), 3) + " ");
+			quad.dump();
+		}
+	}
+
+}
